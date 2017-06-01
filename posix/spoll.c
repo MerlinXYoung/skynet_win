@@ -3,22 +3,22 @@
 #include <fcntl.h>
 #include "spoll.h"
 
-bool
+static bool
 sp_invalid(int efd) {
 	return efd == -1;
 }
 
-int
+static int
 sp_create() {
 	return epoll_create(1024);
 }
 
-void
+static void
 sp_release(int efd) {
 	close(efd);
 }
 
-int
+static int
 sp_add(int efd, int sock, void *ud) {
 	struct epoll_event ev;
 	ev.events = EPOLLIN;
@@ -29,12 +29,12 @@ sp_add(int efd, int sock, void *ud) {
 	return 0;
 }
 
-void
+static void
 sp_del(int efd, int sock) {
 	epoll_ctl(efd, EPOLL_CTL_DEL, sock, NULL);
 }
 
-void
+static void
 sp_write(int efd, int sock, void *ud, bool enable) {
 	struct epoll_event ev;
 	ev.events = EPOLLIN | (enable ? EPOLLOUT : 0);
@@ -42,7 +42,7 @@ sp_write(int efd, int sock, void *ud, bool enable) {
 	epoll_ctl(efd, EPOLL_CTL_MOD, sock, &ev);
 }
 
-int
+static int
 sp_wait(int efd, struct event *e, int max) {
 	struct epoll_event ev[max];
 	int n = epoll_wait(efd, ev, max, -1);
@@ -51,12 +51,14 @@ sp_wait(int efd, struct event *e, int max) {
 		e[i].s = ev[i].data.ptr;
 		unsigned flag = ev[i].events;
 		e[i].write = (flag & EPOLLOUT) != 0;
-		e[i].read = (flag & EPOLLIN) != 0;
+		e[i].read = (flag & (EPOLLIN | EPOLLHUP)) != 0;
+		e[i].error = (flag & EPOLLERR) != 0;
 	}
+
 	return n;
 }
 
-void
+static void
 sp_nonblocking(int fd) {
 	int flag = fcntl(fd, F_GETFL, 0);
 	if (-1 == flag) {

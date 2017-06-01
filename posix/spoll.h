@@ -7,6 +7,7 @@ struct event {
 	void * s;
 	bool read;
 	bool write;
+	bool error;
 };
 
 bool sp_invalid(poll_fd fd);
